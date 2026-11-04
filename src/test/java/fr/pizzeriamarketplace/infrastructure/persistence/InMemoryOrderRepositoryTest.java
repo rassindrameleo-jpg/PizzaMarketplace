@@ -9,6 +9,7 @@ import fr.pizzeriamarketplace.domain.model.Pizza;
 import fr.pizzeriamarketplace.domain.model.Size;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import java.time.Instant;
 
 import java.util.List;
 
@@ -61,6 +62,6 @@ class InMemoryOrderRepositoryTest {
         Ingredient cheese = new Ingredient("Cheese", 100);
         Pizza pizza = new Pizza("Margherita", Base.TOMATO, List.of(cheese));
         CartLine line = new CartLine(pizza, Size.MEDIUM, 1);
-        return new Order(id, List.of(line), OrderStatus.PENDING);
+        return new Order(id, "customer-1", Instant.now(), List.of(line), OrderStatus.PENDING);
     }
 }
