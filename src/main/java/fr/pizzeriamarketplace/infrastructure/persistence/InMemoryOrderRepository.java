@@ -28,4 +28,12 @@ public final class InMemoryOrderRepository implements OrderRepository {
     public List<Order> findAll() {
         return List.copyOf(orders.values());
     }
+
+    @Override
+    public List<Order> findByCustomerId(String customerId) {
+        Objects.requireNonNull(customerId, "customerId must not be null");
+        return orders.values().stream()
+                .filter(order -> order.getCustomerId().equals(customerId))
+                .toList();
+    }
 }
