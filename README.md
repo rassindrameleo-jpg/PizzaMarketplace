@@ -1,5 +1,79 @@
 # PizzaMarketplace
 
+API de commande de pizzas pour une marketplace qui regroupe trois chaînes : **Da Michele**, **Rossopomodoro** et **Pizzium**.
+Le client compose son panier, la commande est validée, payée puis suivie jusqu'à la livraison.
+
+Le projet a été réalisé dans le cadre du cours **Design Patterns**. L'objectif principal est l'utilisation justifiée de patterns de conception et un code découplé, plutôt qu'une application complète (pas d'interface graphique ni de base de données).
+
+## Prérequis techniques
+
+- Java 21
+- Maven 3.8+
+- IntelliJ IDEA (recommandé)
+
+## Installation et lancement
+
+```bash
+git clone https://github.com/rassindrameleo-jpg/PizzaMarketplace.git
+cd PizzaMarketplace
+mvn clean compile
+```
+
+La démonstration se lance depuis la classe `Main` (bouton ▶ dans IntelliJ), ou en ligne de commande :
+
+```bash
+java -cp target/classes Main
+```
+
+## Tests
+
+```bash
+mvn clean test
+```
+
+## Architecture
+
+Le projet suit une **architecture hexagonale** (ports & adapters). Les dépendances vont uniquement vers l'intérieur : le domaine ne dépend de rien.
+
+```
+src/main/java/fr/pizzeriamarketplace
+├── domain/          # Modèle métier et règles métier (Pizza, Cart, Order, stratégies de prix…)
+├── application/     # Cas d'usage et ports (interfaces vers l'extérieur)
+│   ├── port/out/    # ex. OrderRepository
+│   └── usecase/     # ex. GetOrderHistory
+└── infrastructure/  # Adaptateurs techniques (ex. stockage en mémoire)
+```
+
+Choix communs à toute l'équipe :
+- **Montants en centimes (`int`)** pour éviter les erreurs d'arrondi des nombres à virgule. La conversion en euros se fait uniquement à l'affichage.
+- **Pas de base de données** : les commandes sont stockées en mémoire derrière le port `OrderRepository`. On pourrait brancher une vraie base sans modifier le domaine ni les cas d'usage.
+- **Polymorphisme plutôt que `switch` / `if`** sur le type, pour respecter le principe ouvert/fermé.
+
+## US1 - Chaînes, menus et prix par taille
+
+*À compléter.*
+
+## US2 - Réductions
+
+Pour cette user story, nous avons choisi le pattern **Strategy**. Le prix d'une commande peut être calculé de plusieurs façons : sans réduction, avec un pourcentage (happy hour, fidélité) ou avec un montant fixe (code promo). Chaque façon de calculer est une stratégie séparée.
+
+L'interface `PricingStrategy` définit une seule méthode, `int apply(int subtotalCents)`, qui reçoit le sous-total en centimes et renvoie le prix après réduction. Elle a trois implémentations :
+- `StandardPricing` : aucune réduction, le prix reste le même. Elle évite de devoir gérer un cas « pas de réduction » avec un `null` ou un `if` ;
+- `PercentageDiscountPricing` : applique un pourcentage de réduction, arrondi au centime ;
+- `FixedAmountDiscountPricing` : retire un montant fixe, sans jamais descendre en dessous de zéro.
+
+Nous avons choisi une classe par **formule de calcul**, et non une classe par promotion. La happy hour (-20 %) et la fidélité (-10 %) utilisent la même formule : ce sont deux instances de `PercentageDiscountPricing` avec un pourcentage différent, passé au constructeur. Cela évite de dupliquer le code, et les valeurs métier sont définies à un seul endroit, là où les stratégies sont créées. Les valeurs invalides (pourcentage hors de 0 à 100, montant négatif) sont refusées dès la création de l'objet.
+
+Les réductions ne se cumulent pas : une seule stratégie est appliquée par commande. Le choix de la stratégie (selon l'heure, le client ou un code promo) n'est pas fait par les stratégies elles-mêmes, mais par le code qui les utilise. Chaque stratégie ne s'occupe donc que du calcul. Le code qui calcule la commande ne connaît que l'interface : pour ajouter une nouvelle réduction, il suffit de créer une nouvelle classe, sans modifier le code existant.
+
+## US3 - Validation de la commande
+
+*À compléter.*
+
+## US4 - Paiement
+
+*À compléter.*
+
 ## US5 - Notifications du suivi de commande
 
 Pour cette user story, nous avons choisi le pattern **Observer**. L'idée est simple : quand le statut d'une commande change, les différents moyens de notification doivent être prévenus automatiquement.
@@ -15,3 +89,26 @@ Pour cette user story, nous avons choisi le pattern **Memento**. Le panier doit 
 Avant chaque modification, `Cart` sauvegarde une copie de son état dans l'historique. La méthode `undo` restaure le dernier état sauvegardé, tandis que `redo` permet de réappliquer une modification annulée. Lorsqu'une nouvelle modification est faite après un `undo`, l'historique `redo` est vidé, comme dans un panier classique.
 
 L'historique est limité aux 10 dernières modifications afin de garder un fonctionnement simple et d'éviter de conserver inutilement trop d'états. Ce pattern permet de séparer la gestion de l'historique de la logique principale du panier.
+
+## US7 - Tests des stratégies de réduction
+
+Chaque stratégie de réduction a sa propre classe de test JUnit 5, dans `src/test/java/fr/pizzeriamarketplace/domain/pricing/` :
+- `StandardPricingTest` : le prix reste inchangé ;
+- `PercentageDiscountPricingTest` : calcul du pourcentage, arrondi au centime (999 centimes à -20 % donnent 799), cas limites 0 % et 100 %, refus d'un pourcentage hors de 0 à 100 ;
+- `FixedAmountDiscountPricingTest` : soustraction du montant, prix jamais négatif, refus d'un montant négatif.
+
+Comme les stratégies ne dépendent de rien d'autre qu'un nombre, elles se testent facilement : on crée la stratégie, on appelle `apply` et on compare le résultat. Les tests suivent la structure *given / when / then*.
+
+## US8 - Pizza personnalisée
+
+*À compléter.*
+
+## US9 - Historique des commandes
+
+Pour cette user story, nous avons utilisé le pattern **Repository**, déjà en place pour le stockage des commandes. Le client doit pouvoir consulter l'historique de ses commandes, trié par date, et le filtrer par statut.
+
+Pour cela, la commande contient maintenant l'identifiant du client (`customerId`) et sa date de création (`createdAt`). Le port `OrderRepository` propose une nouvelle requête, `findByCustomerId`, implémentée dans `InMemoryOrderRepository`. Retrouver les commandes d'un client est une question d'accès aux données, comme un `WHERE` en SQL : elle a donc sa place dans le repository.
+
+Le tri et le filtre par statut sont faits dans le cas d'usage `GetOrderHistory`, dans la couche `application`. Il propose deux méthodes : `forCustomer(customerId)` pour toutes les commandes du client, et `forCustomer(customerId, status)` pour celles d'un statut donné. Dans les deux cas, les commandes les plus récentes apparaissent en premier.
+
+`GetOrderHistory` dépend uniquement de l'interface `OrderRepository`, pas de son implémentation en mémoire. On peut donc remplacer le stockage par une vraie base de données sans modifier le cas d'usage. Les tests utilisent directement `InMemoryOrderRepository`, ce qui évite d'écrire des faux objets.
