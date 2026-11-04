@@ -6,13 +6,11 @@ public final class Pizza {
     private final String name;
     private final Base base;
     private final List<Ingredient> ingredients;
-    private final Size size;
 
-    public Pizza(String name, Base base, List<Ingredient> ingredients, Size size) {
+    public Pizza(String name, Base base, List<Ingredient> ingredients) {
         this.name = name;
         this.base = base;
         this.ingredients = ingredients;
-        this.size = size;
     }
 
     public String getName() {
@@ -25,9 +23,5 @@ public final class Pizza {
 
     public List<Ingredient> getIngredients() {
         return ingredients;
-    }
-
-    public Size getSize(){
-        return size;
     }
 }
