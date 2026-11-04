@@ -1,6 +1,5 @@
 package fr.pizzeriamarketplace.domain.model;
 
-import java.util.Objects;
 
 public final class CartLine {
     private final Pizza pizza;
@@ -8,11 +7,8 @@ public final class CartLine {
     private final int quantity;
 
     public CartLine(Pizza pizza, Size size, int quantity) {
-        this.pizza = Objects.requireNonNull(pizza, "pizza must not be null");
-        this.size = Objects.requireNonNull(size, "size must not be null");
-        if (quantity <= 0) {
-            throw new IllegalArgumentException("quantity must be greater than zero");
-        }
+        this.pizza = pizza;
+        this.size = size;
         this.quantity = quantity;
     }
 
