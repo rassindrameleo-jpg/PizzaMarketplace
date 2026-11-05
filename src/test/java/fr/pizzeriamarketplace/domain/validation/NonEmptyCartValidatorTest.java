@@ -18,8 +18,9 @@ public class NonEmptyCartValidatorTest {
     void rejectWhenCartIsEmpty (){
         Cart cart = new Cart();
         NonEmptyCartValidator validator = new NonEmptyCartValidator();
-
-assertThrows(IllegalArgumentException.class , ()->validator.validate(cart)) ;
+        ValidationContext context =
+                new ValidationContext(cart, "75001", 2000);
+assertThrows(IllegalArgumentException.class , ()->validator.validate(context)) ;
     }
 
     @Test
@@ -30,7 +31,27 @@ assertThrows(IllegalArgumentException.class , ()->validator.validate(cart)) ;
        Pizza pizza = new Pizza("Margeritta",null , List.of()) ;
 cart.addLine(pizza , Size.MEDIUM , 1);
 
-validator.validate(cart);
+        ValidationContext context =
+                new ValidationContext(cart, "75001", 2000);
+
+
+
+        validator.validate(context);
+    }
+
+    @Test
+    void stopChainWhenCartIsEmpty(){
+        Cart cart = new Cart() ;
+        Pizza pizza = new Pizza("Margeritta",null , List.of()) ;
+        cart.addLine(pizza , Size.MEDIUM , 1);
+
+        ValidationContext context = new ValidationContext(cart , "75001", 1100) ;
+NonEmptyCartValidator validator1 = new NonEmptyCartValidator() ;
+MinimumAmountValidator validator2 = new MinimumAmountValidator() ;
+validator1.setNext(validator2);
+      //  validator1.validate(context) ;
+assertThrows( IllegalArgumentException.class , ()->validator1.validate(context)) ;
 
     }
-}
+    }
+

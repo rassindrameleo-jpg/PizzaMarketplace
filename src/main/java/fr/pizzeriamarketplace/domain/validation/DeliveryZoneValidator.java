@@ -2,7 +2,7 @@ package fr.pizzeriamarketplace.domain.validation;
 
 import java.util.List;
 
-public class DeliveryZoneValidator implements ValidationHandler {
+public class DeliveryZoneValidator extends AbstractValidationHandler {
 
     private List<String> allowedPostalCodes;
 
@@ -19,6 +19,9 @@ public class DeliveryZoneValidator implements ValidationHandler {
             throw new IllegalArgumentException(
                     "Zone de livraison non disponible"
             );
+
+
         }
+        validateNext(context);
     }
 }

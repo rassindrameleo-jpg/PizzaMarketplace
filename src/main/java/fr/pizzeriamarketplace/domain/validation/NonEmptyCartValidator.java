@@ -2,7 +2,7 @@ package fr.pizzeriamarketplace.domain.validation;
 
 import fr.pizzeriamarketplace.domain.model.Cart;
 
-public class NonEmptyCartValidator implements ValidationHandler{
+public class NonEmptyCartValidator extends AbstractValidationHandler{
 
 
 
@@ -14,5 +14,7 @@ public class NonEmptyCartValidator implements ValidationHandler{
         if(context.getCart().isEmpty()){
             throw new IllegalArgumentException("le panier est vide ");
         }
+
+        validateNext(context);
     }
 }
