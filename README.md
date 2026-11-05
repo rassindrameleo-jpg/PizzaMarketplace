@@ -51,7 +51,20 @@ Choix communs à toute l'équipe :
 
 ## US1 - Chaînes, menus et prix par taille
 
-*À compléter.*
+Pour cette user story, nous avons combiné deux patterns : **Strategy** pour la règle de prix selon la taille, et **Abstract Factory** pour les enseignes.
+
+Chaque enseigne calcule le prix d'une taille à sa façon : Da Michele ajoute un montant fixe (S -2 €, L +3 €, XL +5 €), Rossopomodoro applique un multiplicateur (S ×0.8, L ×1.3, XL ×1.5) et Pizzium ne propose que la taille M. L'interface `SizePricingStrategy` définit deux méthodes : `supports(size)`, qui indique si une taille est proposée, et `priceFor(mediumPriceCents, size)`, qui calcule le prix à partir du prix de référence en taille M. Elle a trois implémentations :
+- `FixedSurchargeSizePricing` : ajoute un supplément par taille, sans jamais descendre en dessous de zéro ;
+- `MultiplierSizePricing` : applique un pourcentage par taille (80 pour ×0.8), arrondi au centime. Les pourcentages sont des entiers pour rester en centimes sans nombre à virgule ;
+- `SingleSizePricing` : ne propose qu'une seule taille et refuse les autres.
+
+Comme pour les réductions de l'US2, nous avons fait une classe par **formule de calcul**, et non une classe par enseigne. Les valeurs (−200, 130 %…) sont passées au constructeur : une nouvelle enseigne qui utilise des suppléments réutilise `FixedSurchargeSizePricing` avec ses propres montants. Les tailles proposées sont simplement celles présentes dans la map, et toute taille non proposée est refusée avec une erreur claire.
+
+Pour les enseignes, nous avons choisi l'**Abstract Factory**. L'interface `PizzaChain` crée une famille d'objets liés entre eux : le menu de l'enseigne (`createMenu`) et sa règle de taille (`createSizePricing`). Le Factory Method ne crée qu'un seul produit ; ici chaque enseigne en fournit plusieurs qui doivent rester cohérents. Ce choix garantit qu'on ne peut pas associer le menu de Pizzium à la grille de prix de Da Michele. Chaque enseigne (`DaMichele`, `Rossopomodoro`, `Pizzium`) regroupe toute sa configuration dans une seule classe : **ajouter une enseigne revient à ajouter une classe**, comme le demande l'US1.
+
+Les enseignes sont regroupées dans `ChainCatalog`, qui les reçoit dans son constructeur depuis `Main` et permet de les retrouver par leur nom. Le catalogue ne connaît que l'interface `PizzaChain` : il ne change jamais quand une enseigne est ajoutée. Un test le vérifie avec une enseigne écrite uniquement pour le test.
+
+Enfin, le client choisit une enseigne avant de composer sa commande : `Cart` et `Order` sont donc rattachés à une `PizzaChain`. Chaque `Pizza` porte seulement son prix en taille M, et c'est la règle de l'enseigne qui calcule le prix final. `subtotalCents()` donne le total avant réduction, sur lequel s'appliquent ensuite les stratégies de l'US2. Le panier refuse aussi une taille que l'enseigne ne propose pas, par exemple une pizza L chez Pizzium.
 
 ## US2 - Réductions
 

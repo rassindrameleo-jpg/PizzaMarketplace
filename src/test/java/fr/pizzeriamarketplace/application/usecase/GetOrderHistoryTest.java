@@ -1,5 +1,6 @@
 package fr.pizzeriamarketplace.application.usecase;
 
+import fr.pizzeriamarketplace.domain.catalog.DaMichele;
 import fr.pizzeriamarketplace.domain.model.Order;
 import fr.pizzeriamarketplace.domain.model.OrderStatus;
 import fr.pizzeriamarketplace.infrastructure.persistence.InMemoryOrderRepository;
@@ -74,6 +75,6 @@ class GetOrderHistoryTest {
     }
 
     private Order order(String id, String customerId, Instant createdAt, OrderStatus status) {
-        return new Order(id, customerId, createdAt, List.of(), status);
+        return new Order(id, customerId, createdAt, new DaMichele(), List.of(), status);
     }
 }
