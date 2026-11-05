@@ -3,5 +3,6 @@ package fr.pizzeriamarketplace.domain.model;
 public enum Size {
     SMALL,
     MEDIUM,
-    LARGE
+    LARGE,
+    EXTRA_LARGE
 }

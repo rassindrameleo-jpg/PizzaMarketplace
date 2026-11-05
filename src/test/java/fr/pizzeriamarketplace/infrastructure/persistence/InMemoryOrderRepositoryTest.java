@@ -1,5 +1,6 @@
 package fr.pizzeriamarketplace.infrastructure.persistence;
 
+import fr.pizzeriamarketplace.domain.catalog.DaMichele;
 import fr.pizzeriamarketplace.domain.model.Base;
 import fr.pizzeriamarketplace.domain.model.CartLine;
 import fr.pizzeriamarketplace.domain.model.Ingredient;
@@ -9,6 +10,7 @@ import fr.pizzeriamarketplace.domain.model.Pizza;
 import fr.pizzeriamarketplace.domain.model.Size;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import java.time.Instant;
 
 import java.util.List;
 
@@ -59,8 +61,8 @@ class InMemoryOrderRepositoryTest {
 
     private Order createOrder(String id) {
         Ingredient cheese = new Ingredient("Cheese", 100);
-        Pizza pizza = new Pizza("Margherita", Base.TOMATO, List.of(cheese));
+        Pizza pizza = new Pizza("Margherita", Base.TOMATO, List.of(cheese), 900);
         CartLine line = new CartLine(pizza, Size.MEDIUM, 1);
-        return new Order(id, List.of(line), OrderStatus.PENDING);
+        return new Order(id, "customer-1", Instant.now(), new DaMichele(), List.of(line), OrderStatus.PENDING);
     }
 }
