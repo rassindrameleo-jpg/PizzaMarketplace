@@ -1,5 +1,6 @@
 package fr.pizzeriamarketplace.domain.model;
 
+import fr.pizzeriamarketplace.domain.catalog.DaMichele;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
@@ -11,7 +12,7 @@ import java.time.Instant;
 class OrderObserverTest {
     @Test
     void notifiesAllActiveListenersWhenStatusChanges() {
-        Order order = new Order("order-1", "customer-1", Instant.now(), List.of(), OrderStatus.PENDING);
+        Order order = new Order("order-1", "customer-1", Instant.now(), new DaMichele(), List.of(), OrderStatus.PENDING);
         List<String> notifications = new ArrayList<>();
         OrderStatusListener firstListener = (updatedOrder, previous, current) ->
                 notifications.add("first:" + previous + "->" + current);
@@ -27,7 +28,7 @@ class OrderObserverTest {
 
     @Test
     void removedListenerIsNotNotifiedAndSameStatusDoesNotNotify() {
-        Order order = new Order("order-1", "customer-1", Instant.now(), List.of(), OrderStatus.PENDING);
+        Order order = new Order("order-1", "customer-1", Instant.now(), new DaMichele(), List.of(), OrderStatus.PENDING);
         List<OrderStatus> notifications = new ArrayList<>();
         OrderStatusListener listener = (updatedOrder, previous, current) -> notifications.add(current);
 

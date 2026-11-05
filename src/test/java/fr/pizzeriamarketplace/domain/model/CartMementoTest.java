@@ -1,5 +1,6 @@
 package fr.pizzeriamarketplace.domain.model;
 
+import fr.pizzeriamarketplace.domain.catalog.DaMichele;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -13,7 +14,7 @@ class CartMementoTest {
 
     @Test
     void undoesAndRedoesCartChanges() {
-        Cart cart = new Cart();
+        Cart cart = new Cart(new DaMichele());
         cart.addLine(pizza, Size.MEDIUM, 1);
         cart.changeSize(0, Size.LARGE);
 
@@ -25,7 +26,7 @@ class CartMementoTest {
 
     @Test
     void newChangeClearsRedoHistory() {
-        Cart cart = new Cart();
+        Cart cart = new Cart(new DaMichele());
         cart.addLine(pizza, Size.MEDIUM, 1);
         cart.changeSize(0, Size.LARGE);
         cart.undo();
@@ -37,7 +38,7 @@ class CartMementoTest {
 
     @Test
     void keepsOnlyTheTenMostRecentChanges() {
-        Cart cart = new Cart();
+        Cart cart = new Cart(new DaMichele());
         for (int i = 0; i < 11; i++) {
             cart.addLine(pizza, Size.MEDIUM, 1);
         }
