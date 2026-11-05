@@ -1,9 +1,8 @@
 package fr.pizzeriamarketplace.domain.validation;
 
-import fr.pizzeriamarketplace.domain.model.Cart;
-import fr.pizzeriamarketplace.domain.model.DeliveryZone;
-import fr.pizzeriamarketplace.domain.model.Restaurant;
-import fr.pizzeriamarketplace.domain.model.Stock;
+import fr.pizzeriamarketplace.domain.catalog.PizzaChain;
+import fr.pizzeriamarketplace.domain.catalog.Pizzium;
+import fr.pizzeriamarketplace.domain.model.*;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -15,12 +14,15 @@ public class MinimumAmountValidatorTest {
 
     @Test
     void rejectWhenAmountBelowMinimum () {
-        Cart cart = new Cart () ;
+
+        PizzaChain chain = new Pizzium();
+
+        Cart cart = new Cart(chain);
         ValidationContext context = new ValidationContext(
                 new Restaurant(true),
                 new DeliveryZone(List.of("75001")),
                 new Stock(Map.of()),
-                2000,
+                cart.subtotalCents(),
                 "75001",
                 cart
         );

@@ -1,5 +1,7 @@
 package fr.pizzeriamarketplace.domain.validation;
 
+import fr.pizzeriamarketplace.domain.catalog.PizzaChain;
+import fr.pizzeriamarketplace.domain.catalog.Pizzium;
 import fr.pizzeriamarketplace.domain.model.*;
 
 import org.junit.jupiter.api.Test;
@@ -15,7 +17,10 @@ public class NonEmptyCartValidatorTest {
 
     @Test
     void rejectWhenCartIsEmpty (){
-        Cart cart = new Cart();
+
+        PizzaChain chain = new Pizzium();
+
+        Cart cart = new Cart(chain);
         NonEmptyCartValidator validator = new NonEmptyCartValidator();
         ValidationContext context = new ValidationContext(
                 new Restaurant(true),
@@ -31,10 +36,19 @@ assertThrows(IllegalArgumentException.class , ()->validator.validate(context)) ;
 
     @Test
     void acceptWhenCartNotEmpty () {
-       Cart cart = new Cart() ;
+
        NonEmptyCartValidator validator = new NonEmptyCartValidator();
 
-       Pizza pizza = new Pizza("Margeritta",null , List.of()) ;
+        Base base = Base.TOMATO;
+        PizzaChain chain = new Pizzium();
+        Ingredient tomate = new Ingredient("tomate" , 100) ;
+        Pizza pizza = new Pizza(
+                "Margherita",
+                base,
+                List.of(tomate),
+                1200
+        );
+        Cart cart = new Cart(chain);
 cart.addLine(pizza , Size.MEDIUM , 1);
 
           ValidationContext context = new ValidationContext(
@@ -54,15 +68,23 @@ cart.addLine(pizza , Size.MEDIUM , 1);
 
     @Test
     void stopChainWhenCartIsEmpty(){
-        Cart cart = new Cart() ;
-        Pizza pizza = new Pizza("Margeritta",null , List.of()) ;
+        Base base = Base.TOMATO;
+        PizzaChain chain = new Pizzium();
+        Ingredient tomate = new Ingredient("tomate" , 100) ;
+        Pizza pizza = new Pizza(
+                "Margherita",
+                base,
+                List.of(tomate),
+                1200
+        );
+        Cart cart = new Cart(chain);
         cart.addLine(pizza , Size.MEDIUM , 1);
 
         ValidationContext context = new ValidationContext(
                 new Restaurant(true),
                 new DeliveryZone(List.of("75001")),
                 new Stock(Map.of()),
-                2000,
+                cart.subtotalCents(),
                 "75001",
                 cart
         );

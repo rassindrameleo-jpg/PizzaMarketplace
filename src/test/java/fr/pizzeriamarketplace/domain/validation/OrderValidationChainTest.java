@@ -1,5 +1,7 @@
 package fr.pizzeriamarketplace.domain.validation;
 
+import fr.pizzeriamarketplace.domain.catalog.PizzaChain;
+import fr.pizzeriamarketplace.domain.catalog.Pizzium;
 import fr.pizzeriamarketplace.domain.model.*;
 import org.junit.jupiter.api.Test;
 
@@ -14,11 +16,16 @@ public class OrderValidationChainTest {
 
     @Test
     void shouldAcceptValidOrder(){
-
+        Base base = Base.TOMATO;
+        PizzaChain chain = new Pizzium();
         Ingredient tomate = new Ingredient("tomate" , 100) ;
-        Pizza pizza = new Pizza("Margherita", null , List.of(tomate)) ;
-
-        Cart cart = new Cart() ;
+        Pizza pizza = new Pizza(
+                "Margherita",
+                base,
+                List.of(tomate),
+                1200
+        );
+        Cart cart = new Cart(chain);
         cart.addLine(pizza , Size.MEDIUM , 2);
         Restaurant restaurant = new Restaurant(true);
         DeliveryZone deliveryZone =
@@ -30,7 +37,7 @@ public class OrderValidationChainTest {
                 restaurant,
                 deliveryZone ,
                 stock ,
-                2000 ,
+                cart.subtotalCents(),
                 "75001" ,
                 cart
         );
