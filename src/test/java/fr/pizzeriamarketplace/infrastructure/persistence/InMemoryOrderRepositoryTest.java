@@ -60,7 +60,7 @@ class InMemoryOrderRepositoryTest {
 
     private Order createOrder(String id) {
         Ingredient cheese = new Ingredient("Cheese", 100);
-        Pizza pizza = new Pizza("Margherita", Base.TOMATO, List.of(cheese));
+        Pizza pizza = new Pizza("Margherita", Base.TOMATO, List.of(cheese), 900);
         CartLine line = new CartLine(pizza, Size.MEDIUM, 1);
         return new Order(id, "customer-1", Instant.now(), List.of(line), OrderStatus.PENDING);
     }

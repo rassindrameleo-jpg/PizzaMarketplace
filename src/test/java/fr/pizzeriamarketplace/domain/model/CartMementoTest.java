@@ -9,7 +9,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class CartMementoTest {
-    private final Pizza pizza = new Pizza("Margherita", Base.TOMATO, List.of());
+    private final Pizza pizza = new Pizza("Margherita", Base.TOMATO, List.of(), 900);
 
     @Test
     void undoesAndRedoesCartChanges() {
