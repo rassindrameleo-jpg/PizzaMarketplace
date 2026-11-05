@@ -12,7 +12,7 @@ public class NonEmptyCartValidator extends AbstractValidationHandler{
     @Override
     public void validate(ValidationContext context) {
         if(context.getCart().isEmpty()){
-            throw new IllegalArgumentException("le panier est vide ");
+            throw new IllegalArgumentException("le panier est vide");
         }
 
         validateNext(context);

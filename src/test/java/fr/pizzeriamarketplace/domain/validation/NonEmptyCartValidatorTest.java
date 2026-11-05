@@ -1,12 +1,11 @@
 package fr.pizzeriamarketplace.domain.validation;
 
-import fr.pizzeriamarketplace.domain.model.Cart;
+import fr.pizzeriamarketplace.domain.model.*;
 
-import fr.pizzeriamarketplace.domain.model.Pizza;
-import fr.pizzeriamarketplace.domain.model.Size;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -18,8 +17,15 @@ public class NonEmptyCartValidatorTest {
     void rejectWhenCartIsEmpty (){
         Cart cart = new Cart();
         NonEmptyCartValidator validator = new NonEmptyCartValidator();
-        ValidationContext context =
-                new ValidationContext(cart, "75001", 2000);
+        ValidationContext context = new ValidationContext(
+                new Restaurant(true),
+                new DeliveryZone(List.of("75001")),
+                new Stock(Map.of()),
+                2000,
+                "75001",
+                cart
+        );
+
 assertThrows(IllegalArgumentException.class , ()->validator.validate(context)) ;
     }
 
@@ -31,8 +37,15 @@ assertThrows(IllegalArgumentException.class , ()->validator.validate(context)) ;
        Pizza pizza = new Pizza("Margeritta",null , List.of()) ;
 cart.addLine(pizza , Size.MEDIUM , 1);
 
-        ValidationContext context =
-                new ValidationContext(cart, "75001", 2000);
+          ValidationContext context = new ValidationContext(
+                new Restaurant(true),
+                new DeliveryZone(List.of("75001")),
+                new Stock(Map.of()),
+                2000,
+                "75001",
+                cart
+        );
+
 
 
 
@@ -45,7 +58,14 @@ cart.addLine(pizza , Size.MEDIUM , 1);
         Pizza pizza = new Pizza("Margeritta",null , List.of()) ;
         cart.addLine(pizza , Size.MEDIUM , 1);
 
-        ValidationContext context = new ValidationContext(cart , "75001", 1100) ;
+        ValidationContext context = new ValidationContext(
+                new Restaurant(true),
+                new DeliveryZone(List.of("75001")),
+                new Stock(Map.of()),
+                2000,
+                "75001",
+                cart
+        );
 NonEmptyCartValidator validator1 = new NonEmptyCartValidator() ;
 MinimumAmountValidator validator2 = new MinimumAmountValidator() ;
 validator1.setNext(validator2);
