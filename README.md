@@ -157,7 +157,19 @@ Comme les stratégies ne dépendent de rien d'autre qu'un nombre, elles se teste
 
 ## US8 - Pizza personnalisée
 
-*À compléter.*
+Pour cette user story, nous avons choisi le pattern **Builder**. Le client compose sa pizza étape par étape : il choisit une base (tomate ou crème), puis ajoute autant d'ingrédients qu'il le souhaite parmi ceux de la carte.
+
+```java
+Pizza pizza = new CustomPizzaBuilder()
+        .base(Base.CREAM)
+        .addIngredient(Ingredients.MOZZARELLA)
+        .addIngredient(Ingredients.GORGONZOLA)
+        .build();
+```
+
+Une pizza personnalisée a un nombre variable d'ingrédients et des étapes obligatoires. Un constructeur classique serait peu lisible et obligerait le code appelant à calculer le prix lui-même. Avec `CustomPizzaBuilder`, le code se lit comme la commande du client, et toute la logique est regroupée dans `build()` : la base doit avoir été choisie, sinon la pizza est refusée, et le prix est calculé à cet endroit, une seule fois. Le client ne peut donc pas obtenir une pizza incomplète ou mal calculée. Les ingrédients doivent faire partie de la carte (`Ingredients.AVAILABLE`), et un même ingrédient peut être ajouté plusieurs fois (double mozzarella).
+
+`build()` calcule le prix de référence de la pizza : 5 € de base plus le prix de chaque ingrédient. La taille n'est pas choisie dans le builder mais au moment de l'ajout au panier, comme pour les pizzas du menu : `cart.addLine(pizza, Size.LARGE, 1)`. C'est alors la règle de taille de l'enseigne (US1) qui s'applique. La pizza de l'exemple ci-dessus coûte donc 9 € en M (5 € + 1,50 € + 2,50 €), 11,70 € en L chez Rossopomodoro (×1.3), 14 € en XL chez Da Michele (+5 €), et Pizzium la refuse dans une autre taille que M. Le builder ne dépend d'aucune enseigne : la base et les ingrédients sont les mêmes partout, seule la règle de taille change, et elle est déjà gérée par l'enseigne.
 
 ## US9 - Historique des commandes
 
