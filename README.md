@@ -59,7 +59,7 @@ La première version est lancée avec `ApiMain` et utilise `HttpServer` du JDK, 
 java -cp target/classes fr.pizzeriamarketplace.infrastructure.http.ApiMain
 ```
 
-Les routes du catalogue et du panier sont disponibles. La création de commande sera branchée après la finalisation du cas d'usage `PlaceOrder`.
+Les routes du catalogue, du panier et de la commande sont disponibles. La route de création utilise le cas d'usage `PlaceOrder` ; pour la démonstration HTTP, le paiement est simulé comme accepté et la zone de livraison configurée est `75001`.
 
 ### Enseignes et catalogue
 

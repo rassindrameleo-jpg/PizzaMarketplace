@@ -2,13 +2,20 @@ package fr.pizzeriamarketplace.infrastructure.http;
 
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
+import fr.pizzeriamarketplace.application.PlaceOrder;
 import fr.pizzeriamarketplace.domain.catalog.ChainCatalog;
 import fr.pizzeriamarketplace.domain.catalog.Ingredients;
 import fr.pizzeriamarketplace.domain.catalog.PizzaChain;
 import fr.pizzeriamarketplace.domain.model.Cart;
+import fr.pizzeriamarketplace.domain.model.DeliveryZone;
 import fr.pizzeriamarketplace.domain.model.Ingredient;
+import fr.pizzeriamarketplace.domain.model.Order;
 import fr.pizzeriamarketplace.domain.model.Pizza;
+import fr.pizzeriamarketplace.domain.model.Restaurant;
 import fr.pizzeriamarketplace.domain.model.Size;
+import fr.pizzeriamarketplace.domain.model.Stock;
+import fr.pizzeriamarketplace.domain.pricing.StandardPricing;
+import fr.pizzeriamarketplace.infrastructure.persistence.InMemoryOrderRepository;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -17,6 +24,7 @@ import java.net.InetSocketAddress;
 import java.net.URI;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
@@ -54,6 +62,11 @@ public final class PizzaMarketplaceHttpServer implements AutoCloseable {
     private static final class ApiHandler {
         private final ChainCatalog catalog;
         private final InMemoryCartStore cartStore;
+        private final InMemoryOrderRepository orderRepository = new InMemoryOrderRepository();
+        private final PlaceOrder placeOrder = new PlaceOrder(
+                orderRepository,
+                amountCents -> true,
+                new StandardPricing());
 
         private ApiHandler(ChainCatalog catalog) {
             this.catalog = catalog;
@@ -104,11 +117,35 @@ public final class PizzaMarketplaceHttpServer implements AutoCloseable {
                 sendJson(exchange, 201, "{\"cartId\":\"" + cartStore.create(chainName) + "\"}");
                 return;
             }
+            if (method.equals("POST") && path.length == 2 && path[1].equals("orders")) {
+                Order order = placeOrder(JsonObject.parse(readBody(exchange)));
+                sendJson(exchange, 201, orderJson(order));
+                return;
+            }
+            if (method.equals("GET") && path.length == 3 && path[1].equals("orders")) {
+                Order order = orderRepository.findById(path[2])
+                        .orElseThrow(() -> new ApiException(404, "Unknown order: " + path[2]));
+                sendJson(exchange, 200, orderJson(order));
+                return;
+            }
             if (path.length >= 3 && path[1].equals("carts")) {
                 handleCart(exchange, method, path);
                 return;
             }
             sendJson(exchange, 404, error("Unknown endpoint"));
+        }
+
+        private Order placeOrder(JsonObject request) {
+            Cart cart = cartStore.find(request.requiredString("cartId"));
+            String customerId = request.requiredString("customerId");
+            String postalCode = request.requiredString("postalCode");
+            return placeOrder.place(
+                    cart,
+                    customerId,
+                    postalCode,
+                    new Restaurant(true),
+                    new DeliveryZone(List.of("75001")),
+                    availableStock());
         }
 
         private void handleCart(HttpExchange exchange, String method, String[] path) throws IOException {
@@ -204,6 +241,19 @@ public final class PizzaMarketplaceHttpServer implements AutoCloseable {
                     .collect(Collectors.joining(",", "[", "]"));
             return "{\"chain\":\"" + escape(cart.getChain().getName()) + "\","
                     + "\"lines\":" + lines + ",\"subtotalCents\":" + cart.subtotalCents() + "}";
+        }
+
+        private static String orderJson(Order order) {
+            return "{\"orderId\":\"" + escape(order.getId()) + "\","
+                    + "\"customerId\":\"" + escape(order.getCustomerId()) + "\","
+                    + "\"status\":\"" + order.getStatus() + "\","
+                    + "\"chain\":\"" + escape(order.getChain().getName()) + "\","
+                    + "\"subtotalCents\":" + order.subtotalCents() + "}";
+        }
+
+        private static Stock availableStock() {
+            return new Stock(Ingredients.AVAILABLE.stream()
+                    .collect(Collectors.toMap(Ingredient::getName, ingredient -> 1_000)));
         }
 
         private static String ingredientJson(Ingredient ingredient) {

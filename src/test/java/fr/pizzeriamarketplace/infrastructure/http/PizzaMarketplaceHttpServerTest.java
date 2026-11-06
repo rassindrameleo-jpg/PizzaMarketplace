@@ -69,6 +69,24 @@ class PizzaMarketplaceHttpServerTest {
         assertTrue(response.body().contains("Unknown chain"));
     }
 
+    @Test
+    void placesAndRetrievesAnOrderFromACart() throws Exception {
+        HttpResponse<String> created = send("POST", "/api/carts", "{\"chain\":\"Da Michele\"}");
+        String cartId = created.body().split("\"")[3];
+        send("POST", "/api/carts/" + cartId + "/items",
+                "{\"pizza\":\"Margherita\",\"size\":\"MEDIUM\",\"quantity\":2}");
+
+        HttpResponse<String> placed = send("POST", "/api/orders",
+                "{\"cartId\":\"" + cartId + "\",\"customerId\":\"customer-1\",\"postalCode\":\"75001\"}");
+        String orderId = placed.body().split("\"")[3];
+        HttpResponse<String> retrieved = send("GET", "/api/orders/" + orderId, "");
+
+        assertEquals(201, placed.statusCode());
+        assertTrue(placed.body().contains("\"status\":\"PAID\""));
+        assertEquals(200, retrieved.statusCode());
+        assertTrue(retrieved.body().contains("\"customerId\":\"customer-1\""));
+    }
+
     private HttpResponse<String> send(String method, String path, String body) throws Exception {
         HttpRequest.Builder request = HttpRequest.newBuilder()
                 .uri(URI.create("http://localhost:" + server.port() + path));
