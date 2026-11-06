@@ -102,6 +102,13 @@ POST /api/carts/{cartId}/items
 Ajoute une pizza, sa taille et sa quantité dans le panier.
 
 ```http
+POST /api/carts/{cartId}/custom-items
+{"base": "CREAM", "ingredients": ["Mozzarella", "Gorgonzola"], "size": "LARGE", "quantity": 1}
+```
+
+Compose une pizza personnalisée (US8) et l'ajoute au panier. La route se contente de traduire la requête : la pizza est construite par `CustomPizzaBuilder`, qui vérifie la base et calcule le prix, puis la règle de taille de l'enseigne s'applique à l'ajout dans le panier. Un ingrédient absent de `GET /api/ingredients`, une base manquante ou une taille non proposée par l'enseigne renvoient une erreur 400. Comme les autres ajouts, cette modification peut être annulée avec `undo`.
+
+```http
 DELETE /api/carts/{cartId}/items/{itemIndex}
 ```
 
