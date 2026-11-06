@@ -14,7 +14,9 @@ import fr.pizzeriamarketplace.domain.model.Pizza;
 import fr.pizzeriamarketplace.domain.model.Restaurant;
 import fr.pizzeriamarketplace.domain.model.Size;
 import fr.pizzeriamarketplace.domain.model.Stock;
+import fr.pizzeriamarketplace.domain.payment.*;
 import fr.pizzeriamarketplace.domain.pricing.StandardPricing;
+import fr.pizzeriamarketplace.domain.validation.*;
 import fr.pizzeriamarketplace.infrastructure.persistence.InMemoryOrderRepository;
 
 import java.io.IOException;
@@ -63,10 +65,7 @@ public final class PizzaMarketplaceHttpServer implements AutoCloseable {
         private final ChainCatalog catalog;
         private final InMemoryCartStore cartStore;
         private final InMemoryOrderRepository orderRepository = new InMemoryOrderRepository();
-        private final PlaceOrder placeOrder = new PlaceOrder(
-                orderRepository,
-                amountCents -> true,
-                new StandardPricing());
+
 
         private ApiHandler(ChainCatalog catalog) {
             this.catalog = catalog;
@@ -132,20 +131,129 @@ public final class PizzaMarketplaceHttpServer implements AutoCloseable {
                 handleCart(exchange, method, path);
                 return;
             }
+
+            if (method.equals("POST")
+                    && path.length == 2
+                    && path[1].equals("payments")) {
+                handlePayment(exchange);
+                return;
+            }
+            if (method.equals("POST")
+                    && path.length == 3
+                    && path[1].equals("orders")
+                    && path[2].equals("validate")) {
+                handleValidation(exchange);
+                return;
+            }
             sendJson(exchange, 404, error("Unknown endpoint"));
         }
 
+        private void handleValidation(HttpExchange exchange) throws IOException {
+            JsonObject request = JsonObject.parse(readBody(exchange));
+
+            Cart cart = cartStore.find(request.requiredString("cartId"));
+            String postalCode = request.requiredString("postalCode");
+
+            ValidationContext context = new ValidationContext(
+                    new Restaurant(true),
+                    new DeliveryZone(List.of("75001")),
+                    availableStock(),
+                    cart.subtotalCents(),
+                    postalCode,
+                    cart
+            );
+
+            NonEmptyCartValidator first = new NonEmptyCartValidator();
+            MinimumAmountValidator minimum = new MinimumAmountValidator();
+            DeliveryZoneValidator delivery = new DeliveryZoneValidator(
+                    new DeliveryZone(List.of("75001"))
+            );
+            StoreOpenValidator store = new StoreOpenValidator();
+            StockValidator stock = new StockValidator();
+
+            first.setNext(minimum);
+            minimum.setNext(delivery);
+            delivery.setNext(store);
+            store.setNext(stock);
+
+
+
+            first.validate(context);
+
+            sendJson(exchange, 200, "{\"valid\":true}");
+        }
+        private PaymentGateway createPaymentGateway(String method) {
+            return switch (method.toLowerCase()) {
+                case "stripe" -> new StripeAdapter(new StripePayment());
+                case "paypal" -> new PaypalAdapter(new PaypalPayment());
+                case "applepay" -> new ApplePayAdapter(new ApplePayPayment());
+                default -> throw new ApiException(400, "Unknown payment method");
+            };
+        }
+        private void handlePayment(HttpExchange exchange) throws IOException {
+            JsonObject request = JsonObject.parse(readBody(exchange));
+
+            int amountCents = request.requiredInt("amountCents");
+            String method = request.requiredString("method");
+
+            if (amountCents <= 0) {
+                throw new ApiException(400, "Amount must be positive");
+            }
+
+            PaymentGateway gateway = switch (method.toLowerCase()) {
+                case "stripe" -> new StripeAdapter(new StripePayment());
+                case "paypal" -> new PaypalAdapter(new PaypalPayment());
+                case "applepay" -> new ApplePayAdapter(new ApplePayPayment());
+                default -> throw new ApiException(400, "Unknown payment method");
+            };
+            //if (gateway instanceof StripeAdapter stripe) {
+               // stripe.setAvailable(false);
+          //  }
+            PaymentGateway fallback = method.equalsIgnoreCase("paypal")
+                    ? new StripeAdapter(new StripePayment())
+                    : new PaypalAdapter(new PaypalPayment());
+
+            PaymentService service = new PaymentService(gateway, fallback);
+            boolean success = service.pay(amountCents);
+
+            sendJson(exchange, success ? 200 : 400,
+                    "{\"success\":" + success + "}");
+        }
         private Order placeOrder(JsonObject request) {
             Cart cart = cartStore.find(request.requiredString("cartId"));
             String customerId = request.requiredString("customerId");
             String postalCode = request.requiredString("postalCode");
+            String paymentMethod = "stripe";
+
+            try {
+                paymentMethod = request.requiredString("paymentMethod");
+            } catch (ApiException e) {
+                if (!e.getMessage().equals("Missing field: paymentMethod")) {
+                    throw e;
+                }
+            }
+            PaymentGateway gateway = createPaymentGateway(paymentMethod);
+
+            PaymentGateway fallback = paymentMethod.equalsIgnoreCase("paypal")
+                    ? createPaymentGateway("stripe")
+                    : createPaymentGateway("paypal");
+
+            PaymentService paymentService = new PaymentService(gateway, fallback);
+
+            PlaceOrder placeOrder = new PlaceOrder(
+                    orderRepository,
+                    paymentService::pay,
+                    new StandardPricing()
+            );
+
             return placeOrder.place(
                     cart,
                     customerId,
                     postalCode,
                     new Restaurant(true),
                     new DeliveryZone(List.of("75001")),
-                    availableStock());
+                    availableStock()
+            );
         }
 
         private void handleCart(HttpExchange exchange, String method, String[] path) throws IOException {
