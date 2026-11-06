@@ -62,6 +62,65 @@ class PizzaMarketplaceHttpServerTest {
     }
 
     @Test
+    void addsCustomPizzaPricedWithTheChainSizeRule() throws Exception {
+        String cartId = createCart("Rossopomodoro");
+
+        HttpResponse<String> added = send("POST", "/api/carts/" + cartId + "/custom-items",
+                "{\"base\":\"CREAM\",\"ingredients\":[\"Mozzarella\",\"Gorgonzola\"],"
+                        + "\"size\":\"LARGE\",\"quantity\":1}");
+
+        assertEquals(201, added.statusCode());
+        assertTrue(added.body().contains("\"pizza\":\"Pizza personnalisée\""));
+        assertTrue(added.body().contains("\"base\":\"CREAM\""));
+        assertTrue(added.body().contains("\"ingredients\":[\"Mozzarella\",\"Gorgonzola\"]"));
+        assertTrue(added.body().contains("\"subtotalCents\":1170"));
+    }
+
+    @Test
+    void customPizzaCanBeUndone() throws Exception {
+        String cartId = createCart("Da Michele");
+        send("POST", "/api/carts/" + cartId + "/custom-items",
+                "{\"base\":\"TOMATO\",\"ingredients\":[\"Mozzarella\"],\"size\":\"MEDIUM\",\"quantity\":1}");
+
+        HttpResponse<String> undone = send("POST", "/api/carts/" + cartId + "/undo", "");
+
+        assertEquals(200, undone.statusCode());
+        assertTrue(undone.body().contains("\"lines\":[]"));
+    }
+
+    @Test
+    void rejectsCustomPizzaWithUnknownIngredient() throws Exception {
+        String cartId = createCart("Da Michele");
+
+        HttpResponse<String> response = send("POST", "/api/carts/" + cartId + "/custom-items",
+                "{\"base\":\"TOMATO\",\"ingredients\":[\"Ananas\"],\"size\":\"MEDIUM\",\"quantity\":1}");
+
+        assertEquals(400, response.statusCode());
+        assertTrue(response.body().contains("Unknown ingredient: Ananas"));
+    }
+
+    @Test
+    void rejectsCustomPizzaWithoutBase() throws Exception {
+        String cartId = createCart("Da Michele");
+
+        HttpResponse<String> response = send("POST", "/api/carts/" + cartId + "/custom-items",
+                "{\"ingredients\":[\"Mozzarella\"],\"size\":\"MEDIUM\",\"quantity\":1}");
+
+        assertEquals(400, response.statusCode());
+        assertTrue(response.body().contains("Missing field: base"));
+    }
+
+    @Test
+    void rejectsCustomPizzaInASizeTheChainDoesNotOffer() throws Exception {
+        String cartId = createCart("Pizzium");
+
+        HttpResponse<String> response = send("POST", "/api/carts/" + cartId + "/custom-items",
+                "{\"base\":\"TOMATO\",\"ingredients\":[],\"size\":\"LARGE\",\"quantity\":1}");
+
+        assertEquals(400, response.statusCode());
+    }
+
+    @Test
     void rejectsUnknownChain() throws Exception {
         HttpResponse<String> response = send("POST", "/api/carts", "{\"chain\":\"Unknown\"}");
 
@@ -85,6 +144,10 @@ class PizzaMarketplaceHttpServerTest {
         assertTrue(placed.body().contains("\"status\":\"PAID\""));
         assertEquals(200, retrieved.statusCode());
         assertTrue(retrieved.body().contains("\"customerId\":\"customer-1\""));
+    }
+
+    private String createCart(String chain) throws Exception {
+        return send("POST", "/api/carts", "{\"chain\":\"" + chain + "\"}").body().split("\"")[3];
     }
 
     private HttpResponse<String> send(String method, String path, String body) throws Exception {

@@ -4,8 +4,10 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import fr.pizzeriamarketplace.application.PlaceOrder;
 import fr.pizzeriamarketplace.domain.catalog.ChainCatalog;
+import fr.pizzeriamarketplace.domain.catalog.CustomPizzaBuilder;
 import fr.pizzeriamarketplace.domain.catalog.Ingredients;
 import fr.pizzeriamarketplace.domain.catalog.PizzaChain;
+import fr.pizzeriamarketplace.domain.model.Base;
 import fr.pizzeriamarketplace.domain.model.Cart;
 import fr.pizzeriamarketplace.domain.model.DeliveryZone;
 import fr.pizzeriamarketplace.domain.model.Ingredient;
@@ -82,7 +84,7 @@ public final class PizzaMarketplaceHttpServer implements AutoCloseable {
                 dispatch(exchange);
             } catch (ApiException exception) {
                 sendJson(exchange, exception.statusCode(), error(exception.getMessage()));
-            } catch (IllegalArgumentException exception) {
+            } catch (IllegalArgumentException | IllegalStateException exception) {
                 sendJson(exchange, 400, error(exception.getMessage()));
             } catch (IOException exception) {
                 sendJson(exchange, 500, error("Could not read request"));
@@ -159,6 +161,11 @@ public final class PizzaMarketplaceHttpServer implements AutoCloseable {
                 sendJson(exchange, 201, cartJson(cart));
                 return;
             }
+            if (method.equals("POST") && path.length == 4 && path[3].equals("custom-items")) {
+                addCustomItem(cart, readBody(exchange));
+                sendJson(exchange, 201, cartJson(cart));
+                return;
+            }
             if (method.equals("DELETE") && path.length == 5 && path[3].equals("items")) {
                 removeItem(cart, path[4]);
                 sendJson(exchange, 200, cartJson(cart));
@@ -188,13 +195,39 @@ public final class PizzaMarketplaceHttpServer implements AutoCloseable {
                     .filter(item -> item.getName().equals(pizzaName))
                     .findFirst()
                     .orElseThrow(() -> new ApiException(400, "Pizza is not on the selected menu"));
-            Size size;
+            cart.addLine(pizza, size(request), request.requiredInt("quantity"));
+        }
+
+        private void addCustomItem(Cart cart, String body) {
+            JsonObject request = JsonObject.parse(body);
+            CustomPizzaBuilder builder = new CustomPizzaBuilder().base(base(request));
+            request.requiredStringList("ingredients").stream()
+                    .map(this::ingredient)
+                    .forEach(builder::addIngredient);
+            cart.addLine(builder.build(), size(request), request.requiredInt("quantity"));
+        }
+
+        private static Size size(JsonObject request) {
             try {
-                size = Size.valueOf(request.requiredString("size").toUpperCase());
+                return Size.valueOf(request.requiredString("size").toUpperCase());
             } catch (IllegalArgumentException exception) {
                 throw new ApiException(400, "Unknown size");
             }
-            cart.addLine(pizza, size, request.requiredInt("quantity"));
+        }
+
+        private static Base base(JsonObject request) {
+            try {
+                return Base.valueOf(request.requiredString("base").toUpperCase());
+            } catch (IllegalArgumentException exception) {
+                throw new ApiException(400, "Unknown base");
+            }
+        }
+
+        private Ingredient ingredient(String name) {
+            return Ingredients.AVAILABLE.stream()
+                    .filter(ingredient -> ingredient.getName().equalsIgnoreCase(name))
+                    .findFirst()
+                    .orElseThrow(() -> new ApiException(400, "Unknown ingredient: " + name));
         }
 
         private void removeItem(Cart cart, String rawIndex) {
@@ -236,11 +269,19 @@ public final class PizzaMarketplaceHttpServer implements AutoCloseable {
         private String cartJson(Cart cart) {
             String lines = cart.getLines().stream()
                     .map(line -> "{\"pizza\":\"" + escape(line.getPizza().getName()) + "\","
+                            + "\"base\":\"" + line.getPizza().getBase() + "\","
+                            + "\"ingredients\":" + ingredientNamesJson(line.getPizza()) + ","
                             + "\"size\":\"" + line.getSize() + "\","
                             + "\"quantity\":" + line.getQuantity() + "}")
                     .collect(Collectors.joining(",", "[", "]"));
             return "{\"chain\":\"" + escape(cart.getChain().getName()) + "\","
                     + "\"lines\":" + lines + ",\"subtotalCents\":" + cart.subtotalCents() + "}";
+        }
+
+        private static String ingredientNamesJson(Pizza pizza) {
+            return pizza.getIngredients().stream()
+                    .map(ingredient -> "\"" + escape(ingredient.getName()) + "\"")
+                    .collect(Collectors.joining(",", "[", "]"));
         }
 
         private static String orderJson(Order order) {
