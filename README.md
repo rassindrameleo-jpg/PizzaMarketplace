@@ -49,6 +49,96 @@ Choix communs à toute l'équipe :
 - **Pas de base de données** : les commandes sont stockées en mémoire derrière le port `OrderRepository`. On pourrait brancher une vraie base sans modifier le domaine ni les cas d'usage.
 - **Polymorphisme plutôt que `switch` / `if`** sur le type, pour respecter le principe ouvert/fermé.
 
+## API HTTP
+
+L'API permettra d'utiliser la marketplace sans accéder directement aux classes métier. Chaque route aura un rôle simple et laissera les règles métier aux cas d'usage et au domaine.
+
+La première version est lancée avec `ApiMain` et utilise `HttpServer` du JDK, sans framework ni dépendance supplémentaire :
+
+```bash
+java -cp target/classes fr.pizzeriamarketplace.infrastructure.http.ApiMain
+```
+
+Les routes du catalogue, du panier et de la commande sont disponibles. La route de création utilise le cas d'usage `PlaceOrder` ; pour la démonstration HTTP, le paiement est simulé comme accepté et la zone de livraison configurée est `75001`.
+
+### Enseignes et catalogue
+
+```http
+GET /api/chains
+```
+
+Retourne les enseignes disponibles sur la marketplace, afin que le client puisse choisir où commander.
+
+```http
+GET /api/chains/{chainName}/menu
+```
+
+Retourne le menu d'une enseigne précise avec ses pizzas et ses prix.
+
+```http
+GET /api/ingredients
+```
+
+Retourne la liste des ingrédients disponibles pour composer une pizza personnalisée.
+
+### Panier
+
+```http
+POST /api/carts
+```
+
+Crée un panier rattaché à l'enseigne choisie par le client.
+
+```http
+GET /api/carts/{cartId}
+```
+
+Retourne le contenu et le sous-total du panier pour que le client puisse vérifier sa commande.
+
+```http
+POST /api/carts/{cartId}/items
+```
+
+Ajoute une pizza, sa taille et sa quantité dans le panier.
+
+```http
+DELETE /api/carts/{cartId}/items/{itemIndex}
+```
+
+Supprime une ligne du panier lorsque le client change d'avis.
+
+```http
+POST /api/carts/{cartId}/undo
+```
+
+Annule la dernière modification du panier, comme le bouton « précédent » d'une application.
+
+```http
+POST /api/carts/{cartId}/redo
+```
+
+Rétablit une modification qui venait d'être annulée.
+
+### Commandes et suivi
+
+```http
+POST /api/orders
+```
+
+Transforme un panier valide en commande. La validation, le prix et le paiement seront traités par les composants métier prévus pour cela.
+
+```http
+GET /api/orders/{orderId}
+```
+
+Retourne le détail d'une commande et son statut actuel pour suivre son avancement.
+
+```http
+GET /api/customers/{customerId}/orders
+```
+
+Retourne l'historique des commandes d'un client, avec un filtre possible sur le statut.
+
 ## US1 - Chaînes, menus et prix par taille
 
 Pour cette user story, nous avons combiné deux patterns : **Strategy** pour la règle de prix selon la taille, et **Abstract Factory** pour les enseignes.
