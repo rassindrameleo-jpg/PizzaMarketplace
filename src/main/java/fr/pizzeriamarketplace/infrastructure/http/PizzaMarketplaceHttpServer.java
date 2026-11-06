@@ -16,6 +16,14 @@ import fr.pizzeriamarketplace.domain.model.Size;
 import fr.pizzeriamarketplace.domain.model.Stock;
 import fr.pizzeriamarketplace.domain.pricing.StandardPricing;
 import fr.pizzeriamarketplace.infrastructure.persistence.InMemoryOrderRepository;
+import fr.pizzeriamarketplace.application.usecase.GetOrderHistory;
+import fr.pizzeriamarketplace.domain.model.OrderStatus;
+import fr.pizzeriamarketplace.domain.payment.PaymentGateway;
+import fr.pizzeriamarketplace.domain.pricing.FixedAmountDiscountPricing;
+import fr.pizzeriamarketplace.domain.pricing.PercentageDiscountPricing;
+import fr.pizzeriamarketplace.domain.pricing.PricingStrategy;
+import fr.pizzeriamarketplace.infrastructure.config.PricingRules;
+import java.util.Map;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -63,10 +71,12 @@ public final class PizzaMarketplaceHttpServer implements AutoCloseable {
         private final ChainCatalog catalog;
         private final InMemoryCartStore cartStore;
         private final InMemoryOrderRepository orderRepository = new InMemoryOrderRepository();
-        private final PlaceOrder placeOrder = new PlaceOrder(
-                orderRepository,
-                amountCents -> true,
-                new StandardPricing());
+        private final PaymentGateway paymentGateway = amountCents -> true;
+        private final GetOrderHistory orderHistory = new GetOrderHistory(orderRepository);
+        private final Map<String, PricingStrategy> discounts = Map.of(
+                "HAPPY_HOUR", new PercentageDiscountPricing(PricingRules.HAPPY_HOUR_DISCOUNT_PERCENT),
+                "LOYALTY", new PercentageDiscountPricing(PricingRules.LOYALTY_DISCOUNT_PERCENT),
+                "PROMO_CODE", new FixedAmountDiscountPricing(PricingRules.PROMO_CODE_DISCOUNT_CENTS));
 
         private ApiHandler(ChainCatalog catalog) {
             this.catalog = catalog;
@@ -118,14 +128,21 @@ public final class PizzaMarketplaceHttpServer implements AutoCloseable {
                 return;
             }
             if (method.equals("POST") && path.length == 2 && path[1].equals("orders")) {
-                Order order = placeOrder(JsonObject.parse(readBody(exchange)));
-                sendJson(exchange, 201, orderJson(order));
+                JsonObject request = JsonObject.parse(readBody(exchange));
+                PricingStrategy pricing = pricing(request);
+                Order order = placeOrder(request, pricing);
+                sendJson(exchange, 201, placedOrderJson(order, pricing));
                 return;
             }
             if (method.equals("GET") && path.length == 3 && path[1].equals("orders")) {
                 Order order = orderRepository.findById(path[2])
                         .orElseThrow(() -> new ApiException(404, "Unknown order: " + path[2]));
                 sendJson(exchange, 200, orderJson(order));
+                return;
+            }
+            if (method.equals("GET") && path.length == 4 && path[1].equals("customers")
+                    && path[3].equals("orders")) {
+                sendJson(exchange, 200, ordersJson(orderHistory(path[2], exchange.getRequestURI())));
                 return;
             }
             if (path.length >= 3 && path[1].equals("carts")) {
@@ -135,10 +152,11 @@ public final class PizzaMarketplaceHttpServer implements AutoCloseable {
             sendJson(exchange, 404, error("Unknown endpoint"));
         }
 
-        private Order placeOrder(JsonObject request) {
+        private Order placeOrder(JsonObject request, PricingStrategy pricing) {
             Cart cart = cartStore.find(request.requiredString("cartId"));
             String customerId = request.requiredString("customerId");
             String postalCode = request.requiredString("postalCode");
+            PlaceOrder placeOrder = new PlaceOrder(orderRepository, paymentGateway, pricing);
             return placeOrder.place(
                     cart,
                     customerId,
@@ -146,6 +164,46 @@ public final class PizzaMarketplaceHttpServer implements AutoCloseable {
                     new Restaurant(true),
                     new DeliveryZone(List.of("75001")),
                     availableStock());
+        }
+
+        private PricingStrategy pricing(JsonObject request) {
+            return request.optionalString("discount")
+                    .map(this::discount)
+                    .orElseGet(StandardPricing::new);
+        }
+
+        private PricingStrategy discount(String name) {
+            PricingStrategy pricing = discounts.get(name);
+            if (pricing == null) {
+                throw new ApiException(400, "Unknown discount: " + name);
+            }
+            return pricing;
+        }
+
+        private List<Order> orderHistory(String customerId, URI uri) {
+            String status = queryParameter(uri, "status");
+            if (status == null) {
+                return orderHistory.forCustomer(customerId);
+            }
+            try {
+                return orderHistory.forCustomer(customerId, OrderStatus.valueOf(status.toUpperCase()));
+            } catch (IllegalArgumentException exception) {
+                throw new ApiException(400, "Unknown status: " + status);
+            }
+        }
+
+        private static String queryParameter(URI uri, String name) {
+            String query = uri.getRawQuery();
+            if (query == null) {
+                return null;
+            }
+            for (String pair : query.split("&")) {
+                String[] keyValue = pair.split("=", 2);
+                if (keyValue.length == 2 && keyValue[0].equals(name)) {
+                    return URLDecoder.decode(keyValue[1], StandardCharsets.UTF_8);
+                }
+            }
+            return null;
         }
 
         private void handleCart(HttpExchange exchange, String method, String[] path) throws IOException {
@@ -243,9 +301,22 @@ public final class PizzaMarketplaceHttpServer implements AutoCloseable {
                     + "\"lines\":" + lines + ",\"subtotalCents\":" + cart.subtotalCents() + "}";
         }
 
+        private static String placedOrderJson(Order order, PricingStrategy pricing) {
+            String json = orderJson(order);
+            return json.substring(0, json.length() - 1)
+                    + ",\"totalCents\":" + pricing.apply(order.subtotalCents()) + "}";
+        }
+
+        private static String ordersJson(List<Order> orders) {
+            return orders.stream()
+                    .map(order -> orderJson(order))
+                    .collect(Collectors.joining(",", "[", "]"));
+        }
+
         private static String orderJson(Order order) {
             return "{\"orderId\":\"" + escape(order.getId()) + "\","
                     + "\"customerId\":\"" + escape(order.getCustomerId()) + "\","
+                    + "\"createdAt\":\"" + order.getCreatedAt() + "\","
                     + "\"status\":\"" + order.getStatus() + "\","
                     + "\"chain\":\"" + escape(order.getChain().getName()) + "\","
                     + "\"subtotalCents\":" + order.subtotalCents() + "}";

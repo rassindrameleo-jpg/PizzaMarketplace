@@ -2,6 +2,7 @@ package fr.pizzeriamarketplace.infrastructure.http;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 
 final class JsonObject {
     private final Map<String, String> values;
@@ -40,6 +41,14 @@ final class JsonObject {
             throw new ApiException(400, "Missing field: " + name);
         }
         return value;
+    }
+
+    Optional<String> optionalString(String name) {
+        String value = values.get(name);
+        if (value == null || value.isBlank()) {
+            return Optional.empty();
+        }
+        return Optional.of(value);
     }
 
     int requiredInt(String name) {
