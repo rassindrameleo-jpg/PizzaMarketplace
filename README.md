@@ -80,12 +80,55 @@ Nous avons choisi une classe par **formule de calcul**, et non une classe par pr
 Les réductions ne se cumulent pas : une seule stratégie est appliquée par commande. Le choix de la stratégie (selon l'heure, le client ou un code promo) n'est pas fait par les stratégies elles-mêmes, mais par le code qui les utilise. Chaque stratégie ne s'occupe donc que du calcul. Le code qui calcule la commande ne connaît que l'interface : pour ajouter une nouvelle réduction, il suffit de créer une nouvelle classe, sans modifier le code existant.
 
 ## US3 - Validation de la commande
+User Story : En tant que client, je souhaite que ma commande soit vérifiée avant sa validation afin de m'assurer qu'elle respecte les règles métier.
+Design Pattern : Chain of Responsibility
 
-*À compléter.*
+j'ai choisi le pattern Chain of Responsibility pour organiser les différentes règles de validation sous forme d'une chaîne de validateurs indépendants.
+Chaque validateur vérifie une condition et transmet la commande au suivant si elle est respectée.
+
+Les validations implémentées sont :
+
+- `NonEmptyCartValidator` : vérifie que le panier n'est pas vide.
+- `MinimumAmountValidator ` : vérifie que le montant minimum de 15 € est atteint.
+- `DeliveryZoneValidator` : vérifie que l'adresse se trouve dans une zone autorisée.
+- `StoreOpenValidator` : vérifie que le restaurant est ouvert.
+- `StockValidator` : vérifie la disponibilité des ingrédients.
+
+Pourquoi ce pattern ?
+
+Séparer les règles métier dans des classes indépendantes.
+Arrêter immédiatement la validation lorsqu'une règle échoue.
+Ajouter ou modifier des validations sans modifier les autres validateurs.
+
+
 
 ## US4 - Paiement
 
-*À compléter.*
+- User Story : En tant que client, je souhaite payer avec ma méthode préférée afin de finaliser ma commande.
+- Design Pattern : Adapter
+
+j'ai  choisi le pattern Adapter pour intégrer plusieurs systèmes de paiement simulés ayant des interfaces différentes.
+
+Trois moyens de paiement sont proposés :
+
+`Stripe `: makePayment(int cents)
+`PayPal `: sendPayment(int amount, String currency)
+`Apple Pay` : processTransaction(int amount, String currency)
+
+Chaque système possède son propre Adapter (`StripeAdapter`, `PaypalAdapter`, `ApplePayAdapter`) qui implémente l'interface commune PaymentGateway.
+Le `PaymentService` utilise cette interface sans dépendre directement des systèmes de paiement.
+- `Pourquoi ce pattern ?`
+Uniformiser l'utilisation de systèmes ayant des signatures différentes.
+Permettre de changer de fournisseur sans modifier les systèmes de paiement.
+Faciliter l'ajout de nouveaux moyens de paiement.
+
+- `Gestion des échecs`
+Le PaymentService utilise un moyen de paiement principal et un moyen de secours.
+Si le premier paiement échoue (retourne false), le service tente automatiquement le second.
+
+- `Exemple :`
+Stripe indisponible → Basculement vers PayPal → Paiement simulé réussi
+Les paiements sont simulés avec System.out.println() : aucune transaction réelle n'est effectuée.
 
 ## US5 - Notifications du suivi de commande
 
