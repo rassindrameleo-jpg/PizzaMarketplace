@@ -51,7 +51,7 @@ Choix communs à toute l'équipe :
 
 ## API HTTP
 
-L'API permettra d'utiliser la marketplace sans accéder directement aux classes métier. Chaque route aura un rôle simple et laissera les règles métier aux cas d'usage et au domaine.
+L'API permet d'utiliser la marketplace sans accéder directement aux classes métier. Chaque route a un rôle simple et laisse les règles métier aux cas d'usage et au domaine.
 
 La première version est lancée avec `ApiMain` et utilise `HttpServer` du JDK, sans framework ni dépendance supplémentaire :
 
@@ -59,7 +59,7 @@ La première version est lancée avec `ApiMain` et utilise `HttpServer` du JDK, 
 java -cp target/classes fr.pizzeriamarketplace.infrastructure.http.ApiMain
 ```
 
-Les routes du catalogue, du panier et de la commande sont disponibles. La route de création utilise le cas d'usage `PlaceOrder` ; pour la démonstration HTTP, le paiement est simulé comme accepté et la zone de livraison configurée est `75001`.
+Les routes du catalogue, du panier, de la commande et du paiement sont disponibles. La route de création utilise le cas d'usage `PlaceOrder` ; pour la démonstration HTTP, les paiements sont simulés (aucune transaction réelle) et la zone de livraison configurée est `75001`.
 
 ### Enseignes et catalogue
 
@@ -130,9 +130,19 @@ Rétablit une modification qui venait d'être annulée.
 
 ```http
 POST /api/orders
+{"cartId": "...", "customerId": "alice", "postalCode": "75001", "discount": "HAPPY_HOUR", "paymentMethod": "paypal"}
 ```
 
-Transforme un panier valide en commande. La validation, le prix et le paiement seront traités par les composants métier prévus pour cela.
+Transforme un panier valide en commande : validation (US3), réduction (US2), paiement (US4), puis enregistrement. Le champ `discount` est optionnel (`HAPPY_HOUR`, `LOYALTY` ou `PROMO_CODE`) ; sans lui, aucune réduction n'est appliquée. La réponse contient `subtotalCents` (avant réduction) et `totalCents` (montant payé).
+
+Le client peut sélectionner son moyen de paiement via `paymentMethod` : `stripe`, `paypal` ou `applepay` (`stripe` par défaut). En cas d'échec, `PaymentService` tente un paiement avec une méthode alternative.
+
+```http
+POST /api/orders/validate
+{"cartId": "...", "postalCode": "75001"}
+```
+
+Valide le panier avec la chaîne de responsabilité (US3), sans passer la commande : panier non vide, montant minimum de 15 €, zone de livraison, restaurant ouvert et stock disponible. Renvoie `{"valid": true}` si tout est correct, sinon une erreur 400 qui indique la règle non respectée.
 
 ```http
 GET /api/orders/{orderId}
@@ -142,9 +152,23 @@ Retourne le détail d'une commande et son statut actuel pour suivre son avanceme
 
 ```http
 GET /api/customers/{customerId}/orders
+GET /api/customers/{customerId}/orders?status=PAID
 ```
 
-Retourne l'historique des commandes d'un client, avec un filtre possible sur le statut.
+Retourne l'historique des commandes d'un client, des plus récentes aux plus anciennes, avec un filtre possible sur le statut.
+
+### Paiement
+
+```http
+POST /api/payments
+{"amountCents": 1800, "method": "paypal"}
+```
+
+Effectue un paiement simulé avec Stripe, PayPal ou Apple Pay (US4), selon le champ `method` (`stripe`, `paypal` ou `applepay`). En cas d'échec, `PaymentService` tente un paiement avec une méthode alternative. Renvoie `{"success": true}` si le paiement est accepté.
+
+### Documentation OpenAPI (Swagger)
+
+Toutes les routes sont décrites dans le fichier `openapi.yaml`, à la racine du projet. Pour le consulter sous forme de Swagger UI, on peut l'ouvrir dans IntelliJ IDEA (aperçu intégré) ou le coller sur [editor.swagger.io](https://editor.swagger.io).
 
 ## US1 - Chaînes, menus et prix par taille
 
@@ -175,6 +199,8 @@ L'interface `PricingStrategy` définit une seule méthode, `int apply(int subtot
 Nous avons choisi une classe par **formule de calcul**, et non une classe par promotion. La happy hour (-20 %) et la fidélité (-10 %) utilisent la même formule : ce sont deux instances de `PercentageDiscountPricing` avec un pourcentage différent, passé au constructeur. Cela évite de dupliquer le code, et les valeurs métier sont définies à un seul endroit, là où les stratégies sont créées. Les valeurs invalides (pourcentage hors de 0 à 100, montant négatif) sont refusées dès la création de l'objet.
 
 Les réductions ne se cumulent pas : une seule stratégie est appliquée par commande. Le choix de la stratégie (selon l'heure, le client ou un code promo) n'est pas fait par les stratégies elles-mêmes, mais par le code qui les utilise. Chaque stratégie ne s'occupe donc que du calcul. Le code qui calcule la commande ne connaît que l'interface : pour ajouter une nouvelle réduction, il suffit de créer une nouvelle classe, sans modifier le code existant.
+
+Dans l'API, ce choix se fait avec le champ optionnel `discount` de `POST /api/orders`. Le serveur associe chaque nom (`HAPPY_HOUR`, `LOYALTY`, `PROMO_CODE`) à sa stratégie dans une `Map`, plutôt qu'avec un `switch`, et transmet la stratégie choisie à `PlaceOrder`. Les valeurs des réductions sont regroupées dans `PricingRules` (`infrastructure/config`).
 
 ## US3 - Validation de la commande
 User Story : En tant que client, je souhaite que ma commande soit vérifiée avant sa validation afin de m'assurer qu'elle respecte les règles métier.
@@ -215,17 +241,17 @@ Trois moyens de paiement sont proposés :
 Chaque système possède son propre Adapter (`StripeAdapter`, `PaypalAdapter`, `ApplePayAdapter`) qui implémente l'interface commune PaymentGateway.
 Le `PaymentService` utilise cette interface sans dépendre directement des systèmes de paiement.
 - `Pourquoi ce pattern ?`
-Uniformiser l'utilisation de systèmes ayant des signatures différentes.
-Permettre de changer de fournisseur sans modifier les systèmes de paiement.
-Faciliter l'ajout de nouveaux moyens de paiement.
+  Uniformiser l'utilisation de systèmes ayant des signatures différentes.
+  Permettre de changer de fournisseur sans modifier les systèmes de paiement.
+  Faciliter l'ajout de nouveaux moyens de paiement.
 
 - `Gestion des échecs`
-Le PaymentService utilise un moyen de paiement principal et un moyen de secours.
-Si le premier paiement échoue (retourne false), le service tente automatiquement le second.
+  Le PaymentService utilise un moyen de paiement principal et un moyen de secours.
+  Si le premier paiement échoue (retourne false), le service tente automatiquement le second.
 
 - `Exemple :`
-Stripe indisponible → Basculement vers PayPal → Paiement simulé réussi
-Les paiements sont simulés avec System.out.println() : aucune transaction réelle n'est effectuée.
+  Stripe indisponible → Basculement vers PayPal → Paiement simulé réussi
+  Les paiements sont simulés avec System.out.println() : aucune transaction réelle n'est effectuée.
 
 ## US5 - Notifications du suivi de commande
 
@@ -277,3 +303,5 @@ Pour cela, la commande contient maintenant l'identifiant du client (`customerId`
 Le tri et le filtre par statut sont faits dans le cas d'usage `GetOrderHistory`, dans la couche `application`. Il propose deux méthodes : `forCustomer(customerId)` pour toutes les commandes du client, et `forCustomer(customerId, status)` pour celles d'un statut donné. Dans les deux cas, les commandes les plus récentes apparaissent en premier.
 
 `GetOrderHistory` dépend uniquement de l'interface `OrderRepository`, pas de son implémentation en mémoire. On peut donc remplacer le stockage par une vraie base de données sans modifier le cas d'usage. Les tests utilisent directement `InMemoryOrderRepository`, ce qui évite d'écrire des faux objets.
+
+Dans l'API, l'historique est disponible avec `GET /api/customers/{customerId}/orders`, et le filtre avec `?status=PAID` par exemple. Le serveur utilise le même repository pour enregistrer les commandes (`PlaceOrder`) et pour les relire (`GetOrderHistory`).

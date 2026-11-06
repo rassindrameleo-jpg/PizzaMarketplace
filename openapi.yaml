@@ -1,0 +1,401 @@
+openapi: 3.0.3
+info:
+  title: Pizza Marketplace API
+  version: 1.0.0
+  description: |
+    Order pizzas from three chains (Da Michele, Rossopomodoro, Pizzium).
+    Start the server with `ApiMain`. All amounts are in cents.
+    Errors are returned as `{"error": "message"}`.
+servers:
+  - url: http://localhost:8080/api
+
+tags:
+  - name: Catalog
+  - name: Cart
+  - name: Orders
+  - name: Payments
+
+paths:
+  /chains:
+    get:
+      tags: [ Catalog ]
+      summary: List the pizza chains
+      responses:
+        '200':
+          description: Available chains
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    name: { type: string, example: Da Michele }
+
+  /chains/{chainName}/menu:
+    get:
+      tags: [ Catalog ]
+      summary: Menu of a chain
+      parameters:
+        - $ref: '#/components/parameters/ChainName'
+      responses:
+        '200':
+          description: Pizzas of the chain
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    name: { type: string, example: Margherita }
+                    base: { $ref: '#/components/schemas/Base' }
+                    mediumPriceCents: { type: integer, example: 900 }
+        '404':
+          $ref: '#/components/responses/Error'
+
+  /ingredients:
+    get:
+      tags: [ Catalog ]
+      summary: Ingredients available for a custom pizza
+      responses:
+        '200':
+          description: Ingredients with their price
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    name: { type: string, example: Mozzarella }
+                    priceCents: { type: integer, example: 150 }
+
+  /carts:
+    post:
+      tags: [ Cart ]
+      summary: Create a cart for a chain
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ chain ]
+              properties:
+                chain: { type: string, example: Da Michele }
+      responses:
+        '201':
+          description: Cart created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  cartId: { type: string, format: uuid }
+        '404':
+          $ref: '#/components/responses/Error'
+
+  /carts/{cartId}:
+    get:
+      tags: [ Cart ]
+      summary: Content and subtotal of a cart
+      parameters:
+        - $ref: '#/components/parameters/CartId'
+      responses:
+        '200':
+          $ref: '#/components/responses/Cart'
+
+  /carts/{cartId}/items:
+    post:
+      tags: [ Cart ]
+      summary: Add a pizza from the menu
+      parameters:
+        - $ref: '#/components/parameters/CartId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ pizza, size, quantity ]
+              properties:
+                pizza: { type: string, example: Margherita }
+                size: { $ref: '#/components/schemas/Size' }
+                quantity: { type: integer, example: 2 }
+      responses:
+        '201':
+          $ref: '#/components/responses/Cart'
+        '400':
+          $ref: '#/components/responses/Error'
+
+  /carts/{cartId}/custom-items:
+    post:
+      tags: [ Cart ]
+      summary: Add a custom pizza (US8, Builder)
+      parameters:
+        - $ref: '#/components/parameters/CartId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ base, ingredients, size, quantity ]
+              properties:
+                base: { $ref: '#/components/schemas/Base' }
+                ingredients:
+                  type: array
+                  items: { type: string }
+                  example: [ Mozzarella, Gorgonzola ]
+                size: { $ref: '#/components/schemas/Size' }
+                quantity: { type: integer, example: 1 }
+      responses:
+        '201':
+          $ref: '#/components/responses/Cart'
+        '400':
+          $ref: '#/components/responses/Error'
+
+  /carts/{cartId}/items/{itemIndex}:
+    delete:
+      tags: [ Cart ]
+      summary: Remove a line from the cart
+      parameters:
+        - $ref: '#/components/parameters/CartId'
+        - name: itemIndex
+          in: path
+          required: true
+          schema: { type: integer, example: 0 }
+      responses:
+        '200':
+          $ref: '#/components/responses/Cart'
+        '400':
+          $ref: '#/components/responses/Error'
+
+  /carts/{cartId}/undo:
+    post:
+      tags: [ Cart ]
+      summary: Undo the last change of the cart (US6, Memento)
+      parameters:
+        - $ref: '#/components/parameters/CartId'
+      responses:
+        '200':
+          $ref: '#/components/responses/Cart'
+        '409':
+          $ref: '#/components/responses/Error'
+
+  /carts/{cartId}/redo:
+    post:
+      tags: [ Cart ]
+      summary: Redo the last undone change (US6, Memento)
+      parameters:
+        - $ref: '#/components/parameters/CartId'
+      responses:
+        '200':
+          $ref: '#/components/responses/Cart'
+        '409':
+          $ref: '#/components/responses/Error'
+
+  /orders:
+    post:
+      tags: [ Orders ]
+      summary: Place an order from a cart
+      description: |
+        Validates the cart (US3), applies the discount (US2), pays (US4) and saves the order.
+        Minimum order: 1500 cents, before discount. Delivery zone of the demo: 75001.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ cartId, customerId, postalCode ]
+              properties:
+                cartId: { type: string, format: uuid }
+                customerId: { type: string, example: alice }
+                postalCode: { type: string, example: '75001' }
+                discount:
+                  type: string
+                  description: No discount when omitted. HAPPY_HOUR -20 %, LOYALTY -10 %, PROMO_CODE -500 cents
+                  enum: [ HAPPY_HOUR, LOYALTY, PROMO_CODE ]
+                paymentMethod:
+                  type: string
+                  description: stripe when omitted. Falls back to another method if the first one fails
+                  enum: [ stripe, paypal, applepay ]
+      responses:
+        '201':
+          description: Order placed and paid
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Order'
+                  - type: object
+                    properties:
+                      totalCents:
+                        type: integer
+                        description: Amount paid, after discount
+                        example: 1440
+        '400':
+          $ref: '#/components/responses/Error'
+
+  /orders/{orderId}:
+    get:
+      tags: [ Orders ]
+      summary: Get an order and its status
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: The order
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Order' }
+        '404':
+          $ref: '#/components/responses/Error'
+
+  /orders/validate:
+    post:
+      tags: [ Orders ]
+      summary: Check a cart without placing the order (US3, Chain of Responsibility)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ cartId, postalCode ]
+              properties:
+                cartId: { type: string, format: uuid }
+                postalCode: { type: string, example: '75001' }
+      responses:
+        '200':
+          description: The cart is valid
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  valid: { type: boolean, example: true }
+        '400':
+          $ref: '#/components/responses/Error'
+
+  /customers/{customerId}/orders:
+    get:
+      tags: [ Orders ]
+      summary: Order history of a customer (US9, Repository)
+      description: Most recent orders first.
+      parameters:
+        - name: customerId
+          in: path
+          required: true
+          schema: { type: string, example: alice }
+        - name: status
+          in: query
+          required: false
+          schema: { $ref: '#/components/schemas/OrderStatus' }
+      responses:
+        '200':
+          description: Orders of the customer
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Order' }
+        '400':
+          $ref: '#/components/responses/Error'
+
+  /payments:
+    post:
+      tags: [ Payments ]
+      summary: Pay an amount with a given method (US4, Adapter)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ amountCents, method ]
+              properties:
+                amountCents: { type: integer, example: 1800 }
+                method:
+                  type: string
+                  enum: [ stripe, paypal, applepay ]
+      responses:
+        '200':
+          description: Payment accepted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+        '400':
+          $ref: '#/components/responses/Error'
+
+components:
+  parameters:
+    ChainName:
+      name: chainName
+      in: path
+      required: true
+      schema: { type: string, example: Da Michele }
+    CartId:
+      name: cartId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+
+  schemas:
+    Size:
+      type: string
+      enum: [ SMALL, MEDIUM, LARGE, EXTRA_LARGE ]
+    Base:
+      type: string
+      enum: [ TOMATO, CREAM ]
+    OrderStatus:
+      type: string
+      enum: [ PENDING, PAID, PREPARING, READY, DELIVERED, CANCELLED ]
+    Order:
+      type: object
+      properties:
+        orderId: { type: string, format: uuid }
+        customerId: { type: string, example: alice }
+        createdAt: { type: string, format: date-time }
+        status: { $ref: '#/components/schemas/OrderStatus' }
+        chain: { type: string, example: Da Michele }
+        subtotalCents: { type: integer, example: 1800 }
+
+  responses:
+    Cart:
+      description: The cart
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              chain: { type: string, example: Da Michele }
+              lines:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    pizza: { type: string, example: Margherita }
+                    base: { $ref: '#/components/schemas/Base' }
+                    ingredients:
+                      type: array
+                      items: { type: string }
+                    size: { $ref: '#/components/schemas/Size' }
+                    quantity: { type: integer, example: 2 }
+              subtotalCents: { type: integer, example: 1800 }
+    Error:
+      description: Error
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error: { type: string, example: Unknown discount }
