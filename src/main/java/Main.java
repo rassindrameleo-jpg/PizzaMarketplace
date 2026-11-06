@@ -14,7 +14,7 @@ import fr.pizzeriamarketplace.domain.payment.PaypalPayment;
 import fr.pizzeriamarketplace.domain.payment.StripeAdapter;
 import fr.pizzeriamarketplace.domain.payment.StripePayment;
 import fr.pizzeriamarketplace.domain.pricing.StandardPricing;
-import fr.pizzeriamarketplace.infrastructure.payment.PaymentServiceAdapter;
+import fr.pizzeriamarketplace.domain.payment.PaymentServiceAdapter;
 import fr.pizzeriamarketplace.infrastructure.persistence.InMemoryOrderRepository;
 
 import java.util.List;
