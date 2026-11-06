@@ -1,7 +1,7 @@
 package fr.pizzeriamarketplace.application;
 
 import fr.pizzeriamarketplace.application.port.out.OrderRepository;
-import fr.pizzeriamarketplace.application.port.out.PaymentGateway;
+import fr.pizzeriamarketplace.domain.payment.PaymentGateway;
 import fr.pizzeriamarketplace.domain.model.Cart;
 import fr.pizzeriamarketplace.domain.model.DeliveryZone;
 import fr.pizzeriamarketplace.domain.model.Order;
