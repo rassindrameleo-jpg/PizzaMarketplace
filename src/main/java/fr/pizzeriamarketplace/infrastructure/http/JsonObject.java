@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * Minimal JSON reader for flat request bodies: string, number and boolean fields,
@@ -29,6 +30,14 @@ final class JsonObject {
             throw new ApiException(400, "Missing field: " + name);
         }
         return (String) value;
+    }
+
+    Optional<String> optionalString(String name) {
+        Object value = values.get(name);
+        if (value == null || (value instanceof String text && text.isBlank())) {
+            return Optional.empty();
+        }
+        return Optional.of(requiredString(name));
     }
 
     int requiredInt(String name) {
